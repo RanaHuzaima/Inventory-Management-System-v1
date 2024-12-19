@@ -22,7 +22,9 @@ export default function AddBillForm() {
   const [searchQuery, setSearchQuery] = useState('');
   const [page, setPage] = useState(1); // To manage pagination
   const [loading, setLoading] = useState(false);
-  const [discount, setDiscount] = useState(0); // State to track the discount
+  const [addBillLoading, setAddBillLoading] = useState(false);
+  const [discount, setDiscount] = useState(0);
+
 
   const itemsPerPage = 4; // Show 5 products per page
 
@@ -87,6 +89,7 @@ export default function AddBillForm() {
   // Handle form submission
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setAddBillLoading(true);
 
     if (!customerName || !customerPhone || !customerAddress || selectedProducts.length === 0) {
       toast.error('Please fill out all fields and select products.');
@@ -156,6 +159,8 @@ export default function AddBillForm() {
     } catch (error) {
       console.error('Error creating bill:', error);
       toast.error('Failed to create bill.');
+    } finally {
+      setAddBillLoading(false);
     }
   };
 
@@ -286,8 +291,8 @@ export default function AddBillForm() {
           </div>
         )}
 
-        <Button type="submit" className="w-full bg-green-500 hover:bg-green-600 mt-4">
-          Create Bill
+        <Button disabled={addBillLoading} type="submit" className="w-full bg-green-500 hover:bg-green-600 mt-4">
+          {addBillLoading ? 'Creating Bill...' : 'Create Bill'}
         </Button>
       </form>
     </div>
