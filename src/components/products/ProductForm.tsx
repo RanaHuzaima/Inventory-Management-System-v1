@@ -1,0 +1,179 @@
+import { useEffect, useState } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+import { X } from 'lucide-react';
+import { toast } from 'react-hot-toast';
+import { supabase } from '../../lib/supabase';
+import { Button } from '../ui/Button';
+import { Input } from '../ui/Input';
+import type { Product, Category } from '../../types/database';
+
+const schema = z.object({
+  sku: z.string().min(1, 'SKU is required'),
+  name: z.string().min(1, 'Name is required'),
+  category_id: z.string().min(1, 'Category is required'),
+  description: z.string().optional(),
+  unit_price: z.number().min(0.01, 'Price must be greater than 0'),
+  minimum_stock: z.number().min(0, 'Minimum stock cannot be negative'),
+});
+
+type FormData = z.infer<typeof schema>;
+
+interface ProductFormProps {
+  open: boolean;
+  product?: Product | null;
+  categories: Category[];
+  onClose: () => void;
+  loading: boolean;
+  onSuccess: () => void;
+}
+
+export function ProductForm({ open, product, categories, onClose, onSuccess }: ProductFormProps) {
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const { register, handleSubmit, formState: { errors }, reset } = useForm<FormData>({
+    resolver: zodResolver(schema),
+    defaultValues: product || {
+      sku: '',
+      name: '',
+      category_id: '',
+      description: '',
+      unit_price: 0,
+      minimum_stock: 0,
+
+    },
+  });
+
+  const onSubmit = async (data: FormData) => {
+    try {
+      setIsSubmitting(true);
+      const user = (await supabase.auth.getUser()).data.user;
+
+      if (!user) {
+        toast.error('You must be logged in to perform this action');
+        return;
+      }
+
+      const { error } = product
+        ? await supabase
+          .from('products')
+          .update(data)
+          .eq('id', product.id)
+        : await supabase
+          .from('products')
+          .insert([{ ...data, user_id: user.id }]);
+
+      if (error) {
+        toast.error(error.message);
+        return;
+      }
+
+      toast.success(product ? 'Product updated successfully' : 'Product created successfully');
+      reset();
+      onSuccess();
+      onClose();
+    } catch (error) {
+      console.error(error)
+      toast.error('An unexpected error occurred');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  useEffect(() => {
+    if (product) {
+      reset({
+        sku: product.sku,
+        name: product.name,
+        category_id: product.category_id,
+        description: product.description || "",
+        unit_price: product.unit_price,
+        minimum_stock: product.minimum_stock,
+      });
+    } else {
+      reset({
+        sku: '',
+        name: '',
+        category_id: '',
+        description: '',
+        unit_price: 0,
+        minimum_stock: 0,
+      });
+    }
+  }, [product, reset]);
+
+  if (!open) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+      <div className="w-full max-w-md rounded-lg bg-white p-6">
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="text-xl font-bold">
+            {product ? 'Edit Product' : 'Add Product'}
+          </h2>
+          <Button variant="ghost" size="sm" onClick={onClose} disabled={isSubmitting}>
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+          <Input
+            label="SKU"
+            {...register('sku')}
+            error={errors.sku?.message}
+          />
+          <Input
+            label="Name"
+            {...register('name')}
+            error={errors.name?.message}
+          />
+          <div className="space-y-1">
+            <label className="text-sm font-medium text-gray-700">
+              Category
+            </label>
+            <select
+              {...register('category_id')}
+              className="block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 sm:text-sm"
+            >
+              <option value="">Select a category</option>
+              {categories?.map((category) => (
+                <option key={category.id} value={category.id}>
+                  {category.name}
+                </option>
+              ))}
+            </select>
+            {errors.category_id && (
+              <p className="text-sm text-red-600">{errors.category_id.message}</p>
+            )}
+          </div>
+          <Input
+            label="Description"
+            {...register('description')}
+            error={errors.description?.message}
+          />
+          <Input
+            label="Unit Price"
+            type="number"
+            step="0.01"
+            {...register('unit_price', { valueAsNumber: true })}
+            error={errors.unit_price?.message}
+          />
+          <Input
+            label="Minimum Stock"
+            type="number"
+            {...register('minimum_stock', { valueAsNumber: true })}
+            error={errors.minimum_stock?.message}
+          />
+          <div className="flex justify-end space-x-2">
+            <Button variant="outline" onClick={onClose} disabled={isSubmitting}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={isSubmitting}>
+              {isSubmitting ? 'Saving...' : product ? 'Update' : 'Create'}
+            </Button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}

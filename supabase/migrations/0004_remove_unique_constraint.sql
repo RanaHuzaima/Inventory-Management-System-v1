@@ -1,0 +1,2 @@
+ALTER TABLE stock_transactions
+DROP CONSTRAINT stock_transactions_user_id_sheet_number_key;
